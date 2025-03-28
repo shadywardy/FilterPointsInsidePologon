@@ -361,21 +361,14 @@ class KMLToExcelConverter:
         except Exception as e:
             self.show_error(f"Error during export: {str(e)}")
 
+
+
     def convert_linestrings_to_polygons(self, input_file):
         try:
             self.status_var.set(f"Converting LineStrings in {os.path.basename(input_file)}")
             
-            if input_file.lower().endswith(".kmz"):
-                with zipfile.ZipFile(input_file, 'r') as kmz:
-                    kml_files = [f for f in kmz.namelist() if f.lower().endswith('.kml')]
-                    if not kml_files:
-                        raise ValueError("No KML file found in KMZ archive")
-                    kml_file = kml_files[0]
-                    with kmz.open(kml_file) as kml_content:
-                        kml_root = parser.parse(kml_content).getroot()
-            else:
-                with open(input_file, 'r', encoding='utf-8') as f:
-                    kml_root = parser.parse(f).getroot()
+            with open(input_file, 'r', encoding='utf-8') as f:
+                kml_root = parser.parse(f).getroot()
 
             ns = {'kml': 'http://www.opengis.net/kml/2.2'}
             polygons = []
@@ -409,6 +402,10 @@ class KMLToExcelConverter:
         except Exception as e:
             self.show_warning("Conversion Warning", f"Could not convert LineStrings: {str(e)}")
             return None
+
+
+
+
 
     def create_kml_document(self, polygons):
         kml_ns = "{http://www.opengis.net/kml/2.2}"
@@ -547,7 +544,7 @@ class KMLToExcelConverter:
 
     def drop_file(self, event):
         file_path = event.data.strip().strip('{}')
-        if file_path.lower().endswith(('.kml', '.kmz')):
+        if file_path.lower().endswith(('.kml')):
             self.process_kml(file_path)
         else:
             self.show_error("Please drop a KML  file")
