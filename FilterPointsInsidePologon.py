@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 import pandas as pd
-from shapely.geometry import Point, Polygon, LineString
+from shapely.geometry import Point, Polygon
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
@@ -9,7 +9,6 @@ from PIL import Image, ImageTk
 import tempfile
 from lxml import etree
 from pykml import parser
-import zipfile
 import time
 from collections import defaultdict
 
@@ -18,6 +17,7 @@ try:
 except ImportError:
     messagebox.showerror("Error", "tkinterdnd2 is not installed or has issues!")
     exit()
+
 
 class KMLToExcelConverter:
     def __init__(self, root):
@@ -29,6 +29,7 @@ class KMLToExcelConverter:
         self.current_process = None
 
     def setup_ui(self):
+        """Initialize the main application UI."""
         self.root.geometry("600x450")
         self.frame = tk.Frame(self.root, padx=20, pady=20)
         self.frame.pack(fill=tk.BOTH, expand=True)
@@ -37,28 +38,34 @@ class KMLToExcelConverter:
         header_frame = tk.Frame(self.frame)
         header_frame.pack(fill=tk.X, pady=(0, 10))
         
-        self.label = tk.Label(header_frame, 
-                            text="Points inside Pologon Or LineString", 
-                            font=('Helvetica', 12, 'bold'))
+        self.label = tk.Label(
+            header_frame, 
+            text="Points inside Polygon Or LineString", 
+            font=('Helvetica', 12, 'bold')
+        )
         self.label.pack(side=tk.LEFT, expand=True)
 
         # Drag and drop area
         drop_frame = tk.LabelFrame(self.frame, text="File Input", padx=10, pady=10)
         drop_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        drop_label = tk.Label(drop_frame, 
-                            text="Drag and drop a KML file here\nor click 'Select File' below", 
-                            wraplength=350)
+        drop_label = tk.Label(
+            drop_frame, 
+            text="Drag and drop a KML file here\nor click 'Select File' below", 
+            wraplength=350
+        )
         drop_label.pack(pady=10)
 
         # Buttons
         button_frame = tk.Frame(self.frame)
         button_frame.pack(fill=tk.X, pady=5)
         
-        self.select_button = tk.Button(button_frame, 
-                                     text="Select File", 
-                                     command=self.select_file,
-                                     width=15)
+        self.select_button = tk.Button(
+            button_frame, 
+            text="Select File", 
+            command=self.select_file,
+            width=15
+        )
         self.select_button.pack(side=tk.LEFT, padx=5)
 
         self.convert_lines_var = tk.BooleanVar(value=True)
@@ -75,29 +82,35 @@ class KMLToExcelConverter:
         progress_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(progress_frame, 
-                                          variable=self.progress_var, 
-                                          maximum=100,
-                                          length=400)
+        self.progress_bar = ttk.Progressbar(
+            progress_frame, 
+            variable=self.progress_var, 
+            maximum=100,
+            length=400
+        )
         self.progress_bar.pack(fill=tk.X, expand=True, pady=5)
 
         self.progress_label = tk.Label(progress_frame, text="Ready", height=1)
         self.progress_label.pack()
 
-        self.try_again_button = tk.Button(progress_frame, 
-                                        text="Process Another File", 
-                                        command=self.reset_application,
-                                        state=tk.DISABLED)
+        self.try_again_button = tk.Button(
+            progress_frame, 
+            text="Process Another File", 
+            command=self.reset_application,
+            state=tk.DISABLED
+        )
         self.try_again_button.pack(pady=5)
 
         # Status bar
         self.status_var = tk.StringVar()
         self.status_var.set("Ready")
-        status_bar = tk.Label(self.frame, 
-                            textvariable=self.status_var, 
-                            bd=1, 
-                            relief=tk.SUNKEN,
-                            anchor=tk.W)
+        status_bar = tk.Label(
+            self.frame, 
+            textvariable=self.status_var, 
+            bd=1, 
+            relief=tk.SUNKEN,
+            anchor=tk.W
+        )
         status_bar.pack(fill=tk.X, pady=(5, 0))
 
         # Drag and drop setup
@@ -105,19 +118,18 @@ class KMLToExcelConverter:
         self.root.dnd_bind("<<Drop>>", self.drop_file)
 
     def toggle_conversion(self):
-        if self.convert_lines_var.get():
-            self.status_var.set("LineString to Polygon conversion enabled")
-        else:
-            self.status_var.set("LineString to Polygon conversion disabled")
+        """Toggle the LineString to Polygon conversion setting."""
+        status = "enabled" if self.convert_lines_var.get() else "disabled"
+        self.status_var.set(f"LineString to Polygon conversion {status}")
 
     def select_file(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("KML files", "*.kml ")]
-        )
+        """Open file dialog to select a KML file."""
+        file_path = filedialog.askopenfilename(filetypes=[("KML files", "*.kml")])
         if file_path:
             self.process_kml(file_path)
 
     def process_kml(self, kml_file):
+        """Process the selected KML file."""
         if not self.running:
             return
             
@@ -125,20 +137,17 @@ class KMLToExcelConverter:
             self.status_var.set(f"Processing: {os.path.basename(kml_file)}")
             self.update_progress(0, "Starting processing...")
             
-            original_kml_file = kml_file
             converted_kml_file = None
-            
             if self.convert_lines_var.get():
                 self.update_progress(0, "Converting LineStrings to Polygons...")
                 converted_kml_file = self.convert_linestrings_to_polygons(kml_file)
                 if not converted_kml_file:
                     self.status_var.set("No LineStrings found to convert")
-                    converted_kml_file = None
 
             # Start processing in a separate thread
             self.current_process = threading.Thread(
                 target=self.process_file,
-                args=(original_kml_file, converted_kml_file)
+                args=(kml_file, converted_kml_file)
             )
             self.current_process.start()
 
@@ -146,6 +155,7 @@ class KMLToExcelConverter:
             self.show_error(f"Error processing file: {str(e)}")
 
     def process_file(self, original_kml_file, converted_kml_file):
+        """Main processing function that runs in a separate thread."""
         try:
             start_time = time.time()
             
@@ -169,31 +179,19 @@ class KMLToExcelConverter:
                 
                 if name is not None and point is not None:
                     try:
-                        coords = list(map(float, point.text.strip().split(",")[:2]))  # Only take first 2 coords
+                        coords = list(map(float, point.text.strip().split(",")[:2]))
                         placemarks.append((name.text.strip(), Point(coords[0], coords[1])))
                     except Exception as e:
                         print(f"Error parsing point {name.text if name else 'unnamed'}: {e}")
                 
-                self.update_progress(5 + (index + 1) / len(all_placemarks) * 25, 
-                                  f"Reading points ({index+1}/{len(all_placemarks)})")
+                self.update_progress(
+                    5 + (index + 1) / len(all_placemarks) * 25, 
+                    f"Reading points ({index+1}/{len(all_placemarks)})"
+                )
 
             # Get original polygons
             self.update_progress(30, "Finding original polygons...")
-            original_polygons = []
-            for placemark in root_original.findall(".//kml:Placemark", namespace):
-                name = placemark.find("kml:name", namespace)
-                polygon = placemark.find(".//kml:Polygon/kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", namespace)
-                
-                if name is not None and polygon is not None:
-                    try:
-                        coords_list = [
-                            list(map(float, coord.strip().split(",")[:2])) 
-                            for coord in polygon.text.strip().split()
-                        ]
-                        polygon_geom = Polygon([(c[0], c[1]) for c in coords_list])
-                        original_polygons.append((name.text.strip(), polygon_geom))
-                    except Exception as e:
-                        print(f"Error parsing polygon {name.text}: {e}")
+            original_polygons = self.extract_polygons(root_original, namespace)
 
             # Get converted polygons (from LineStrings)
             converted_polygons = []
@@ -201,25 +199,7 @@ class KMLToExcelConverter:
                 self.update_progress(40, "Processing converted LineStrings...")
                 tree_converted = ET.parse(converted_kml_file)
                 root_converted = tree_converted.getroot()
-                
-                for placemark in root_converted.findall(".//kml:Placemark", namespace):
-                    if not self.running:
-                        return
-                        
-                    name = placemark.find("kml:name", namespace)
-                    polygon = placemark.find(".//kml:Polygon/kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", namespace)
-                    
-                    if name is not None and polygon is not None:
-                        try:
-                            coords_list = [
-                                list(map(float, coord.strip().split(",")[:2])) 
-                                for coord in polygon.text.strip().split()
-                            ]
-                            polygon_geom = Polygon([(c[0], c[1]) for c in coords_list])
-                            display_name = name.text.strip().replace("_Polygon", "")
-                            converted_polygons.append((display_name, polygon_geom))
-                        except Exception as e:
-                            print(f"Error parsing converted polygon {name.text}: {e}")
+                converted_polygons = self.extract_polygons(root_converted, namespace, is_converted=True)
 
             # Show feature selection dialog in main thread
             polygon_names = [name for name, _ in original_polygons]
@@ -229,7 +209,6 @@ class KMLToExcelConverter:
                 self.show_warning("No Features", "No polygons or linestrings found in the KML file.")
                 return
             
-            # Use after() to schedule the dialog in the main thread
             self.root.after(0, lambda: self.show_selection_dialog(
                 placemarks, original_polygons, converted_polygons, polygon_names, linestring_names
             ))
@@ -237,7 +216,30 @@ class KMLToExcelConverter:
         except Exception as e:
             self.show_error(f"Error during processing: {str(e)}")
 
+    def extract_polygons(self, root_element, namespace, is_converted=False):
+        """Extract polygons from KML document."""
+        polygons = []
+        for placemark in root_element.findall(".//kml:Placemark", namespace):
+            name = placemark.find("kml:name", namespace)
+            polygon = placemark.find(".//kml:Polygon/kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", namespace)
+            
+            if name is not None and polygon is not None:
+                try:
+                    coords_list = [
+                        list(map(float, coord.strip().split(",")[:2])) 
+                        for coord in polygon.text.strip().split()
+                    ]
+                    polygon_geom = Polygon([(c[0], c[1]) for c in coords_list])
+                    display_name = name.text.strip()
+                    if is_converted:
+                        display_name = display_name.replace("_Polygon", "")
+                    polygons.append((display_name, polygon_geom))
+                except Exception as e:
+                    print(f"Error parsing polygon {name.text}: {e}")
+        return polygons
+
     def show_selection_dialog(self, placemarks, original_polygons, converted_polygons, polygon_names, linestring_names):
+        """Show the feature selection dialog."""
         try:
             selected_polygons, selected_linestrings = self.show_feature_selection(polygon_names, linestring_names)
             
@@ -267,6 +269,7 @@ class KMLToExcelConverter:
 
     def export_to_excel(self, placemarks, original_polygons, converted_polygons, 
                       selected_polygons, selected_linestrings, output_path):
+        """Export the results to an Excel file."""
         try:
             start_time = time.time()
             self.update_progress(60, "Preparing data for export...")
@@ -307,7 +310,7 @@ class KMLToExcelConverter:
                 for pt_name in points:
                     polygon_output.append({
                         "Polygon Name": poly_name,
-                        "inculded Point Name": pt_name
+                        "included Point Name": pt_name
                     })
             
             # LineString sheet data
@@ -316,7 +319,7 @@ class KMLToExcelConverter:
                 for pt_name in points:
                     linestring_output.append({
                         "Converted LineString to Polygon Name": line_name,
-                        "inculded Point Name": pt_name
+                        "included Point Name": pt_name
                     })
             
             # Unassigned points
@@ -361,9 +364,8 @@ class KMLToExcelConverter:
         except Exception as e:
             self.show_error(f"Error during export: {str(e)}")
 
-
-
     def convert_linestrings_to_polygons(self, input_file):
+        """Convert LineStrings in KML to Polygons."""
         try:
             self.status_var.set(f"Converting LineStrings in {os.path.basename(input_file)}")
             
@@ -403,11 +405,8 @@ class KMLToExcelConverter:
             self.show_warning("Conversion Warning", f"Could not convert LineStrings: {str(e)}")
             return None
 
-
-
-
-
     def create_kml_document(self, polygons):
+        """Create a KML document from polygon data."""
         kml_ns = "{http://www.opengis.net/kml/2.2}"
         kml_element = etree.Element(kml_ns + "kml")
         document = etree.SubElement(kml_element, kml_ns + "Document")
@@ -426,6 +425,7 @@ class KMLToExcelConverter:
         return kml_element
 
     def show_feature_selection(self, polygons, linestrings):
+        """Show the feature selection window."""
         selection_window = tk.Toplevel(self.root)
         selection_window.title("Select Features to Process")
         selection_window.geometry("700x600")
@@ -453,20 +453,25 @@ class KMLToExcelConverter:
         button_frame = tk.Frame(selection_window)
         button_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        tk.Button(button_frame, 
-                text="Process Selected", 
-                command=process_selected,
-                width=15).pack(side=tk.RIGHT)
+        tk.Button(
+            button_frame, 
+            text="Process Selected", 
+            command=process_selected,
+            width=15
+        ).pack(side=tk.RIGHT)
         
-        tk.Button(button_frame, 
-                text="Cancel", 
-                command=selection_window.destroy,
-                width=15).pack(side=tk.RIGHT, padx=5)
+        tk.Button(
+            button_frame, 
+            text="Cancel", 
+            command=selection_window.destroy,
+            width=15
+        ).pack(side=tk.RIGHT, padx=5)
         
         selection_window.wait_window()
         return selected_polygons, selected_linestrings
 
     def create_feature_selection_tab(self, notebook, tab_name, features):
+        """Create a tab in the feature selection notebook."""
         frame = tk.Frame(notebook)
         notebook.add(frame, text=f"{tab_name} ({len(features)})")
         
@@ -475,10 +480,12 @@ class KMLToExcelConverter:
         header_frame.pack(fill=tk.X, padx=5, pady=5)
         
         select_all_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(header_frame, 
-                      text=f"Select All {tab_name}", 
-                      variable=select_all_var,
-                      command=lambda: self.toggle_all(frame.vars, select_all_var.get())).pack(side=tk.LEFT)
+        tk.Checkbutton(
+            header_frame, 
+            text=f"Select All {tab_name}", 
+            variable=select_all_var,
+            command=lambda: self.toggle_all(frame.vars, select_all_var.get())
+        ).pack(side=tk.LEFT)
         
         search_frame = tk.Frame(header_frame)
         search_frame.pack(side=tk.RIGHT)
@@ -508,11 +515,13 @@ class KMLToExcelConverter:
         
         for feature in unique_features:
             var = tk.BooleanVar(value=True)
-            cb = tk.Checkbutton(scrollable_frame, 
-                              text=feature, 
-                              variable=var,
-                              anchor="w",
-                              width=50)
+            cb = tk.Checkbutton(
+                scrollable_frame, 
+                text=feature, 
+                variable=var,
+                anchor="w",
+                width=50
+            )
             cb.pack(anchor="w", padx=20, pady=2)
             vars.append((feature, var))
         
@@ -521,10 +530,12 @@ class KMLToExcelConverter:
         return frame
 
     def toggle_all(self, vars, state):
+        """Toggle all checkboxes in the feature selection list."""
         for _, var in vars:
             var.set(state)
 
     def filter_features(self, frame, search_text):
+        """Filter features in the selection list based on search text."""
         for widget in frame.winfo_children():
             if isinstance(widget, tk.Checkbutton):
                 text = widget.cget("text").lower()
@@ -534,6 +545,7 @@ class KMLToExcelConverter:
                     widget.pack_forget()
 
     def update_progress(self, value, message=None):
+        """Update the progress bar and status message."""
         if not self.running:
             return
             
@@ -543,13 +555,15 @@ class KMLToExcelConverter:
         self.root.update_idletasks()
 
     def drop_file(self, event):
+        """Handle file drop event."""
         file_path = event.data.strip().strip('{}')
-        if file_path.lower().endswith(('.kml')):
+        if file_path.lower().endswith('.kml'):
             self.process_kml(file_path)
         else:
-            self.show_error("Please drop a KML  file")
+            self.show_error("Please drop a KML file")
 
     def reset_application(self):
+        """Reset the application state for new processing."""
         self.progress_var.set(0)
         self.progress_bar.update()
         self.progress_label.config(text="Ready")
@@ -557,6 +571,7 @@ class KMLToExcelConverter:
         self.status_var.set("Ready for new file")
 
     def load_logo(self):
+        """Attempt to load application logo from various paths."""
         logo_paths = ["ZTE LOGO.png", "logo.png", "icon.png"]
         for path in logo_paths:
             if os.path.exists(path):
@@ -570,23 +585,27 @@ class KMLToExcelConverter:
                     print(f"Could not load logo {path}: {e}")
 
     def show_error(self, message):
+        """Show an error message."""
         self.root.after(0, lambda: messagebox.showerror("Error", message))
         self.status_var.set(f"Error: {message}")
         self.reset_application()
 
     def show_warning(self, title, message):
+        """Show a warning message."""
         self.root.after(0, lambda: messagebox.showwarning(title, message))
         self.status_var.set(f"Warning: {message}")
 
     def on_close(self):
+        """Handle application close event."""
         self.running = False
         if self.current_process and self.current_process.is_alive():
             self.status_var.set("Waiting for process to finish...")
             self.current_process.join(timeout=2)
         self.root.destroy()
 
+
 if __name__ == "__main__":
     root = TkinterDnD.Tk()
-    root.title("Points inside Pologon Or LineString")
+    root.title("Points inside Polygon Or LineString")
     app = KMLToExcelConverter(root)
     root.mainloop()
